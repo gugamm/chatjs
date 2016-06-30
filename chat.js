@@ -16,12 +16,14 @@
 /* OBJECTS
 
     CHAT :
-      _connected : boolean
-      serverHost : string
-      serverName : string
-      connection : Strophe.Connection
-      dialogs    : Array of Dialog
-      DEBUG      : Object of DEBUG (OPTIONAL)
+      _connected    : boolean
+      _userJid      : string
+      _userPassword : string
+      serverHost    : string
+      serverName    : string
+      connection    : Strophe.Connection
+      dialogs       : Array of Dialog
+      DEBUG         : Object of DEBUG (OPTIONAL)
 
     DEBUG :
         no properties
@@ -88,7 +90,7 @@ function ChatDialog(personJid) {
 ChatDialog.prototype.addMessage        = function(author, text, date) {
     this.conversation.push(new ChatMessage(author, text, date));
 };
-ChatDialog.prototype.addSentMessage    = function(text, date) {
+ChatDialog.prototype.addReceivedMessage    = function(text, date) {
     this.conversation.push(new ChatMessage(this.personJid, text, date));
 };
 ChatDialog.prototype.clearConversation = function () {
@@ -105,6 +107,8 @@ function Chat(serverHost, serverName, debug) {
     this.serverName = serverName;
     this.connection = null;
     this._connected = false;
+    this._userJid      = null;
+    this._userPassword = null;
     this.dialogs    = [];
     if (debug)
         this.DEBUG = new ChatDebug();
@@ -152,7 +156,7 @@ Chat.prototype._handleMessageEvent   = function (message) {
 
     var dialog = this.getDialog(bareJid);
     if (dialog) {
-        dialog.addMessage(bareJid, body, new Date());
+        dialog.addReceivedMessage(body, new Date());
     };
 
     this.onMessage(bareJid,body);
@@ -189,12 +193,16 @@ Chat.prototype.onMessage      = function (from,message) {};
 Chat.prototype.connect        = function (jid, password) {
     this.connection = new Strophe.Connection("http://" + this.serverHost + ":7070/http-bind/");
     this.connection.connect(jid,password,this._handleStateChange.bind(this));
+    this._userJid      = jid;
+    this._userPassword = password;
 };
 //Disconnect from server and set connection property to null
 Chat.prototype.disconnect     = function () {
     if (this.connection) {
         this.connection.disconnect();
         this.connection = null;
+        this._userJid = null;
+        this._userPassword = null;
     }
 };
 //Return true if connected. False if not connected
@@ -223,7 +231,7 @@ Chat.prototype.getDialogId    = function (personJid) {
 Chat.prototype.getDialog      = function (personJid) {
     var dialogId = this.getDialogId(personJid);
     if (dialogId !== -1)
-        return this.dialogs[i];
+        return this.dialogs[dialogId];
     return null;
 };
 
@@ -295,7 +303,7 @@ Chat.prototype.sendMessage      = function (destJid, message) {
 
     var dialog = this.getDialog(destJid);
     if (dialog)
-        dialog.addSentMessage(message, new Date());
+        dialog.addMessage(this._userJid, message, new Date());
 
     this._sendMessage(destJid, message);
     return true;
@@ -309,7 +317,7 @@ Chat.prototype.broadcastMessage = function (message) {
     for (var i = 0; i < this.dialogs.length; i++) {
         dialog  = this.dialogs[i];
         destJid = dialog.personJid;
-        dialog.addSentMessage(message, new Date());
+        dialog.addMessage(this._userJid, message, new Date());
         this._sendMessage(destJid, message);
     }
 
